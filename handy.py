@@ -5,8 +5,10 @@ import math
 import random
 import argparse
 
-from pythonosc import osc_message_builder
-from pythonosc import udp_client
+# Import needed modules from osc4py3
+from osc4py3.as_eventloop import *
+from osc4py3 import oscbuildparse
+import time
 
 # parameters
 cap_region_x_end=0.5  # start point/total width
@@ -19,6 +21,12 @@ learningRate = 0
 # variables
 captured = False   # bool, whether the background captured
 triggerSwitch = False  # if true, keyborad simulator works
+#send osc messages:
+osc_startup()
+
+# Make client channels to send packets.
+osc_udp_client("0.0.0.0", 6448, "aclientname")
+
 
 def printThreshold(thr):
     return
@@ -42,6 +50,8 @@ while camera.isOpened():
     k = cv2.waitKey(10)
     if k == 27 or k == ord('q'):  # q or esc to exit
         # cv2.imwrite("last.jpg", im2) 
+        # Properly close the system.
+        osc_terminate()
         break
     elif k == ord('b'):  # press 'b' to capture the background
         bgModel = cv2.createBackgroundSubtractorMOG2(0, bgSubThreshold)
@@ -71,37 +81,35 @@ while camera.isOpened():
         im2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         contours.sort(key=lambda cnt: cv2.contourArea(cnt))
-        contours=contours[-3:]
-        print("contours")
+        contours=contours[-1:]
+
         for cont in contours:
             
             try:
-                print(cv2.contourArea(cont))
-                # (x,y),radius = cv2.minEnclosingCircle(cont)
-                # center = (int(x),int(y))
-                # radius = int(radius)    
-                # cv2.circle(img,center,radius,(0,255,0),2)
+               
                 hull = cv2.convexHull(cont)
                 clusters = 7
                 hull = np.squeeze(hull)
-                if np.float32(hull).size>(clusters * 2 + 1):  
+                if np.float32(hull).size>(clusters * 2):  
                     #kmeans 
                     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.1)
                     ret,label,center=cv2.kmeans( np.float32(hull),clusters,None,criteria,3,cv2.KMEANS_PP_CENTERS)
 
-                    centerPx = np.int32([center])
-
-                    for px in np.squeeze(centerPx):
+                    for px in np.squeeze(np.int32([center])  ):
 
                         px = tuple(px)
-                        # cv2.circle(img,px, 0, (99,12,255), 20)
-
-
+                        cv2.circle(img,px, 0, (99,12,255), 20)
+                    
+                    # Build a simple message and send it.
+                    wekInputs = list(center.flatten()) 
+                    msg = oscbuildparse.OSCMessage("/wek/inputs", None, [float(i) for i in wekInputs ])
+                    osc_send(msg, "aclientname")
+                    osc_process()
             except IndexError:
-                print("waiting for your movrs")
+                print("waiting for your moves")
             
         color=( random.randint(100,200), random.randint(100,200), random.randint(100,200));
             
-        # cv2.drawContours(img, contours, -1, color, random.randint(5,10))
+        cv2.drawContours(img, contours, -1, color, random.randint(5,10))
 
         cv2.imshow('binaried', img)
