@@ -56,9 +56,7 @@ while camera.isOpened():
     elif k == ord('b'):  # press 'b' to capture the background
         bgModel = cv2.createBackgroundSubtractorMOG2(0, bgSubThreshold)
         captured = True
-    im2 = 0
 
-    ret, frame = camera.read()
     ret, frame = camera.read()
     frame = cv2.flip(frame, 1)
 
@@ -77,12 +75,19 @@ while camera.isOpened():
         blur = cv2.GaussianBlur(gray, (blurValue, blurValue), 0)
         ret, thresh = cv2.threshold(blur, threshold, 255, cv2.THRESH_BINARY)
 
-        #find contours then get the top 3 largest ones
+        #find contours then get the top x largest ones
         im2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         contours.sort(key=lambda cnt: cv2.contourArea(cnt))
         contours=contours[-1:]
 
+        color=( random.randint(100,200), random.randint(100,200), random.randint(100,200));
+            
+        cv2.drawContours(img, contours, -1, color, random.randint(5,10))
+
+        cv2.imshow('binaried & contoured', img)
+
+        #find some (7?) number of centroids for each contour
         for cont in contours:
             
             try:
@@ -100,7 +105,7 @@ while camera.isOpened():
                         px = tuple(px)
                         cv2.circle(img,px, 0, (99,12,255), 20)
                     
-                    # Build a simple message and send it.
+                    # Build and send the OSC message 
                     wekInputs = list(center.flatten()) 
                     msg = oscbuildparse.OSCMessage("/wek/inputs", None, [float(i) for i in wekInputs ])
                     osc_send(msg, "aclientname")
@@ -108,8 +113,3 @@ while camera.isOpened():
             except IndexError:
                 print("waiting for your moves")
             
-        color=( random.randint(100,200), random.randint(100,200), random.randint(100,200));
-            
-        cv2.drawContours(img, contours, -1, color, random.randint(5,10))
-
-        cv2.imshow('binaried', img)
